@@ -1,4 +1,8 @@
 # 🏗️ Construction AI Assistant — Mini RAG System
+## link: 
+https://indecimal-assignment.onrender.com
+## website screenshot:
+<img width="1843" height="835" alt="image" src="https://github.com/user-attachments/assets/9c4e3103-ed35-4b17-a0c6-fde5f4f27b0b" />
 
 ## 🚀 Overview
 
