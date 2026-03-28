@@ -5,10 +5,18 @@ import pickle
 import time
 import os
 import re
+import sys
+import urllib.request
+import urllib.error
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 from dotenv import load_dotenv
 
+# -------------------------------
+# PAGE CONFIG
+# Must be the very first Streamlit command!
+# -------------------------------
+st.set_page_config(page_title="RAG Assistant", layout="wide")
 # -------------------------------
 # LOAD ENV VARIABLES
 # Supports both local .env and Streamlit Cloud secrets
@@ -24,13 +32,65 @@ def get_api_key():
 
 api_key = get_api_key()
 
-# Detect if running on Streamlit Cloud (no local Ollama available)
-IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE") is not None or "STREAMLIT_SERVER_ADDRESS" in os.environ
+# -------------------------------
+# ENVIRONMENT DETECTION
+# -------------------------------
+@st.cache_resource(ttl=3600)
+def detect_environment():
+    """
+    Detect whether the app is running locally or in cloud deployment.
+    Uses environment variables and fallback logic (checking for Docker/containers).
+    """
+    is_cloud = False
+    
+    # 1. Check known cloud environment variables
+    cloud_vars = [
+        "STREAMLIT_SHARING_MODE", 
+        "STREAMLIT_SERVER_ADDRESS",
+        "KUBERNETES_SERVICE_HOST",
+        "RENDER",
+        "SPACE_ID",
+        "HEROKU_APP_NAME"
+    ]
+    if any(var in os.environ for var in cloud_vars):
+        is_cloud = True
+        
+    # User and Home directory heuristics used by Streamlit Cloud
+    if os.getenv("USER") == "appuser" or os.getenv("HOME") == "/home/appuser":
+        is_cloud = True
+        
+    # 2. Fallback logic: Check if running inside a container (Docker/Cloud proxy)
+    if os.path.exists("/.dockerenv"):
+        is_cloud = True
+        
+    try:
+        if os.path.exists("/proc/1/cgroup"):
+            with open('/proc/1/cgroup', 'rt') as f:
+                content = f.read().lower()
+                if 'docker' in content or 'kubepods' in content or 'containerd' in content:
+                    is_cloud = True
+    except Exception:
+        pass
+        
+    # 3. Final verification test: Is Ollama responding locally?
+    # Disproves cloud assumptions if we strictly have local Ollama access
+    try:
+        req = urllib.request.Request("http://localhost:11434/api/version", method="GET")
+        with urllib.request.urlopen(req, timeout=0.5) as response:
+            if response.status == 200:
+                is_cloud = False
+    except urllib.error.URLError:
+        pass
+    except Exception:
+        pass
+        
+    return is_cloud
+
+IS_CLOUD = detect_environment()
 
 # -------------------------------
-# PAGE CONFIG
+# APP TITLE
 # -------------------------------
-st.set_page_config(page_title="RAG Assistant", layout="wide")
 st.title("🏗️ Construction AI Assistant")
 
 # -------------------------------
@@ -165,9 +225,9 @@ def generate_api_answer(query, chunks):
 # -------------------------------
 def generate_ollama_answer(query, chunks):
     if IS_CLOUD:
+        # Fulfilling the requirement for a clean UI message inside cloud env
         return (
-            "⚠️ Ollama is a local-only model. It cannot run on Streamlit Cloud. "
-            "Please run the app locally with Ollama installed to use this feature.",
+            "⚠️ Ollama is only available in local environment. Please run locally to use this feature.",
             0.0
         )
 

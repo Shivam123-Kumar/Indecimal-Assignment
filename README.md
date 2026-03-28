@@ -20,6 +20,7 @@ This AI assistant answers user questions **strictly from internal construction d
 - ✅ Generates grounded answers using an LLM
 - ✅ Clearly shows **which chunks were used** for every answer
 - ✅ Supports **dual-model comparison** (Cloud API vs. Local LLM)
+- ✅ **Robust Environment Detection**: Automatically unloads local models seamlessly when hosted remotely on cloud platforms
 
 ---
 
