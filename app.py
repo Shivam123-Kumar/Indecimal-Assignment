@@ -7,20 +7,31 @@ import os
 import re
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
-import ollama
 from dotenv import load_dotenv
 
 # -------------------------------
 # LOAD ENV VARIABLES
+# Supports both local .env and Streamlit Cloud secrets
 # -------------------------------
 load_dotenv()
-api_key = os.getenv("OPENROUTER_API_KEY")
+
+def get_api_key():
+    """Load API key from Streamlit secrets (cloud) or .env (local)."""
+    try:
+        return st.secrets["OPENROUTER_API_KEY"]
+    except Exception:
+        return os.getenv("OPENROUTER_API_KEY")
+
+api_key = get_api_key()
+
+# Detect if running on Streamlit Cloud (no local Ollama available)
+IS_CLOUD = os.getenv("STREAMLIT_SHARING_MODE") is not None or "STREAMLIT_SERVER_ADDRESS" in os.environ
 
 # -------------------------------
 # PAGE CONFIG
 # -------------------------------
 st.set_page_config(page_title="RAG Assistant", layout="wide")
-st.title("Construction AI Assistant")
+st.title("🏗️ Construction AI Assistant")
 
 # -------------------------------
 # CUSTOM CSS (DARK UI)
@@ -75,7 +86,7 @@ if api_key:
         base_url="https://openrouter.ai/api/v1"
     )
 else:
-    st.warning("⚠️ OpenRouter API key not found. API mode disabled.")
+    st.warning("⚠️ OpenRouter API key not found. Set it in `.env` locally or in Streamlit Cloud Secrets.")
 
 # -------------------------------
 # RETRIEVAL
@@ -90,12 +101,12 @@ def retrieve(query, k=5):
         chunk = all_chunks[i]
         if len(chunk.strip()) > 50:
             results.append(chunk)
-            scores.append(round(float(dist), 4))
+            scores.append(float(round(float(dist), 4)))
 
     return results, scores
 
 # -------------------------------
-# HIGHLIGHT FUNCTION (FIXED)
+# HIGHLIGHT FUNCTION
 # -------------------------------
 def highlight_text(text, query):
     words = query.split()
@@ -128,11 +139,11 @@ Answer:
 """
 
 # -------------------------------
-# API MODEL
+# API MODEL (OpenRouter)
 # -------------------------------
 def generate_api_answer(query, chunks):
     if not client:
-        return "API key missing. Cannot use OpenRouter.", 0
+        return "❌ API key missing. Cannot use OpenRouter.", 0
 
     context = "\n\n".join(chunks)
     prompt = build_prompt(query, context)
@@ -145,36 +156,68 @@ def generate_api_answer(query, chunks):
         temperature=0
     )
 
-    latency = round(time.time() - start, 2)
+    latency = float(round(time.time() - start, 2))
     return response.choices[0].message.content, latency
 
 # -------------------------------
-# OLLAMA MODEL
+# LOCAL LLM MODEL (Ollama)
+# Lazy import — safe for cloud deployments where Ollama is not running
 # -------------------------------
 def generate_ollama_answer(query, chunks):
+    if IS_CLOUD:
+        return (
+            "⚠️ Ollama is a local-only model. It cannot run on Streamlit Cloud. "
+            "Please run the app locally with Ollama installed to use this feature.",
+            0.0
+        )
+
+    try:
+        import ollama  # lazy import — only needed locally
+    except ImportError:
+        return "❌ Ollama package not installed. Run `pip install ollama` and try again.", 0.0
+
     context = "\n\n".join(chunks)
     prompt = build_prompt(query, context)
-
     start = time.time()
-    
+
     try:
         response = ollama.chat(
             model='phi',
             messages=[{"role": "user", "content": prompt}]
         )
-        latency = round(time.time() - start, 2)
+        latency = float(round(time.time() - start, 2))
         return response['message']['content'], latency
     except Exception as e:
-        latency = round(time.time() - start, 2)
-        return f"Ollama Error: Could not connect to local model. (Make sure Ollama is installed and running). Details: {e}", latency
+        latency = float(round(time.time() - start, 2))
+        return (
+            f"⚠️ Ollama Error: Could not connect to local model. "
+            f"Make sure Ollama is installed and running (`ollama run phi`).\n\nDetails: {e}",
+            latency
+        )
+
+# -------------------------------
+# SIDEBAR INFO
+# -------------------------------
+with st.sidebar:
+    st.header("ℹ️ About")
+    st.markdown("""
+    **Mini RAG System** for a Construction Marketplace.
+    
+    - 🔍 **Retrieval**: FAISS semantic search  
+    - 📝 **Embedding**: `all-MiniLM-L6-v2`  
+    - 🤖 **LLM**: OpenRouter API (cloud)  
+    - 🧠 **Local LLM**: Ollama `phi` (local only)  
+    """)
+    if IS_CLOUD:
+        st.info("☁️ Running on cloud — Ollama unavailable. Use OpenRouter.")
 
 # -------------------------------
 # UI CONTROLS
 # -------------------------------
-st.caption("Single Model → One model | Compare Models → Side-by-side comparison")
+st.caption("Single Model → One model answer | Compare Models → Side-by-side comparison")
 
 mode = st.radio("Mode:", ["Single Model", "Compare Models"])
-model_choice = st.selectbox("Model:", ["OpenRouter", "Ollama"])
+model_choice = st.selectbox("Model:", ["OpenRouter", "Ollama (local only)"])
 top_k = st.slider("Top K Chunks", 1, 10, 5)
 
 query = st.text_input("🔍 Ask your question:")
@@ -213,7 +256,7 @@ if query:
             else:
                 answer, latency = generate_ollama_answer(query, chunks)
 
-        if "Not available in context" in answer:
+        if "Not available in context" in answer or answer.startswith("❌") or answer.startswith("⚠️"):
             st.warning(answer)
         else:
             st.success(answer)
@@ -233,13 +276,19 @@ if query:
             with st.spinner("Running..."):
                 api_answer, api_time = generate_api_answer(query, chunks)
 
-            st.success(api_answer)
+            if api_answer.startswith("❌") or api_answer.startswith("⚠️"):
+                st.warning(api_answer)
+            else:
+                st.success(api_answer)
             st.info(f"⏱ {api_time} sec")
 
         with col2:
-            st.subheader("🧠 Ollama")
+            st.subheader("🧠 Ollama (local only)")
             with st.spinner("Running..."):
                 ollama_answer, ollama_time = generate_ollama_answer(query, chunks)
 
-            st.success(ollama_answer)
+            if ollama_answer.startswith("❌") or ollama_answer.startswith("⚠️"):
+                st.warning(ollama_answer)
+            else:
+                st.success(ollama_answer)
             st.info(f"⏱ {ollama_time} sec")

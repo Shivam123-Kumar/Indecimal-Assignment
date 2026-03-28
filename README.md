@@ -1,36 +1,34 @@
 # 🏗️ Construction AI Assistant — Mini RAG System
-## link: 
-(https://indecimal-assignment-sgeqcybgjijnu59ytdwwrv.streamlit.app/)
-## website screenshot:
-<img width="1843" height="835" alt="image" src="https://github.com/user-attachments/assets/9c4e3103-ed35-4b17-a0c6-fde5f4f27b0b" />
 
-## 🚀 Overview
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://indecimal-assignment-sgeqcybgjijnu59ytdwwrv.streamlit.app/)
 
-This project implements a Retrieval-Augmented Generation (RAG) based AI assistant for a construction marketplace.  
-The system answers user queries strictly using internal documents such as policies, pricing specifications, and customer journey information.
-
-It ensures:
-
-- ✅ Grounded responses (no hallucination)
-- ✅ Transparency (shows retrieved context)
-- ✅ Explainability (clear reasoning source)
+> A production-ready Retrieval-Augmented Generation (RAG) system for a construction marketplace, built with FAISS, SentenceTransformers, and OpenRouter LLM.
 
 ---
 
-## 🎯 Objective
+## 🚀 Live Demo
 
-To build a system that:
+🔗 [https://indecimal-assignment-sgeqcybgjijnu59ytdwwrv.streamlit.app/](https://indecimal-assignment-sgeqcybgjijnu59ytdwwrv.streamlit.app/)
 
-- Retrieves relevant information from internal documents  
-- Generates answers **only from retrieved content**  
-- Demonstrates clarity, correctness, and explainability  
+---
+
+## 🎯 What It Does
+
+This AI assistant answers user questions **strictly from internal construction documents** — no hallucinations, no external knowledge. It:
+
+- ✅ Retrieves the most relevant document chunks using semantic search
+- ✅ Generates grounded answers using an LLM
+- ✅ Clearly shows **which chunks were used** for every answer
+- ✅ Supports **dual-model comparison** (Cloud API vs. Local LLM)
 
 ---
 
 ## 🧠 System Architecture
+
+```
 User Query
     ↓
-Embedding (SentenceTransformer)
+Embedding (SentenceTransformer: all-MiniLM-L6-v2)
     ↓
 FAISS Vector Search
     ↓
@@ -38,179 +36,200 @@ Top-K Relevant Chunks
     ↓
 LLM (OpenRouter / Ollama)
     ↓
-Grounded Answer
-
+Grounded Answer + Retrieved Context
+```
 
 ---
 
 ## ⚙️ Tech Stack
 
-| Component   | Tool Used |
-|------------|----------|
-| Embeddings | SentenceTransformers (`all-MiniLM-L6-v2`) |
-| Vector DB  | FAISS |
-| API LLM    | OpenRouter (LLaMA-3 / GPT models) |
-| Local LLM  | Ollama (`phi`) |
-| UI         | Streamlit |
-| Language   | Python |
+| Component    | Tool                                         |
+|-------------|----------------------------------------------|
+| Embeddings  | `sentence-transformers` (`all-MiniLM-L6-v2`) |
+| Vector DB   | FAISS (local, in-memory)                    |
+| Cloud LLM   | OpenRouter (`meta-llama/llama-3-8b-instruct`)|
+| Local LLM   | Ollama (`phi`) — optional, local only        |
+| UI          | Streamlit                                    |
+| Language    | Python 3.10+                                 |
+
+### Why these choices?
+- **`all-MiniLM-L6-v2`**: Fast, lightweight, 384-dim embeddings — ideal for local inference without a GPU
+- **FAISS**: No external service needed; fast cosine/L2 similarity search in memory
+- **OpenRouter**: Free-tier access to LLaMA-3 with no local GPU required for deployment
+- **Ollama (optional)**: Demonstrates local LLM capability and model comparison
 
 ---
 
 ## 📂 Project Structure
-mini-rag/
+
+```
+project/
 │
-├── app.py
-├── faiss.index
-├── untitled.ipynb
-├── chunks.pkl
-├── doc1.md
-├── doc2.md
-├── doc3.md
-├── requirements.txt
-└── README.md
-
-
----
-
-## 🔧 How It Works
-
-### 1. Document Processing
-- Documents are loaded and split into smaller chunks  
-- Each chunk is converted into embeddings  
-
-### 2. Vector Indexing
-- FAISS is used to store embeddings  
-- Enables fast similarity search  
-
-### 3. Retrieval
-- User query is embedded  
-- Top-K most relevant chunks are retrieved  
-
-### 4. Grounded Generation
-- LLM is prompted with:
-  - Retrieved chunks  
-  - Strict rules to avoid hallucination  
+├── app.py                # Main Streamlit application
+├── rag_pipeline.ipynb    # Jupyter notebook: chunking, embedding, indexing
+├── faiss.index           # Pre-built FAISS vector index
+├── chunks.pkl            # Pre-computed document chunks
+├── doc1.md               # Source document 1 (Construction Policies)
+├── doc2.md               # Source document 2 (FAQs & Pricing)
+├── doc3.md               # Source document 3 (Project Specifications)
+├── requirements.txt      # Python dependencies
+├── README.md             # This file
+├── .env.example          # Template for environment variables
+└── .gitignore            # Ignored files (secrets, cache)
+```
 
 ---
 
-## 🔒 Grounding Strategy
+## 🔧 How Chunking & Retrieval Work
 
-The system enforces strict constraints:
- - Answer ONLY from context
- - Do NOT add external knowledge
- - If not found → "Not available in context"
+### 1. Document Processing (see `rag_pipeline.ipynb`)
+- Each `.md` document is split into paragraph-level chunks
+- Each chunk is embedded using `SentenceTransformer('all-MiniLM-L6-v2')`
+- Embeddings are stored in a FAISS index and chunks saved to `chunks.pkl`
 
- 
-This ensures high reliability and prevents hallucinations.
+### 2. Semantic Retrieval
+- At query time, the user question is embedded with the same model
+- FAISS performs an L2 similarity search and returns the Top-K closest chunks
+- Chunks shorter than 50 characters are filtered out
 
----
-
-## 🖥️ Features
-
-### ✅ Core Features
-- Semantic search using FAISS  
-- Context-aware answer generation  
-- Transparent display of retrieved chunks  
-
-### ⭐ Advanced Features
-- Dual LLM support:
-  - API-based (OpenRouter)  
-  - Local (Ollama)  
-- Model comparison mode  
-- Latency measurement  
-- Highlighted keywords in context  
-- Adjustable Top-K retrieval  
+### 3. Grounded Generation
+- Retrieved chunks are concatenated as context in the LLM prompt
+- The prompt explicitly instructs the model to **only use the provided context**:
+  - `"Answer ONLY from the context"`
+  - `"Do NOT add external knowledge"`
+  - `"If answer is not clearly present, say: 'Not available in context'"`
 
 ---
 
-## ⚖️ Model Comparison
+## ⚖️ LLM Comparison
 
-| Aspect         | OpenRouter (API) | Ollama (Local) |
-|---------------|-----------------|---------------|
-| Speed         | Fast ⚡         | Slow 🐢       |
-| Cost          | API-based       | Free          |
-| Groundedness  | Strong ✅       | Medium ⚠️     |
-| Hallucination | Low             | Moderate      |
-| Dependency    | Internet        | Local         |
-
----
-
-## 🧪 Evaluation
-
-### Test Queries
-- What is escrow payment?  
-- How are construction delays handled?  
-- What are pricing packages?  
-- What is quality assurance system?  
-- What is customer journey?  
-
-### Observations
-- Retrieval is generally accurate  
-- Increasing Top-K improves completeness  
-- API model produces more precise answers  
-- Local model may introduce hallucinations  
+| Aspect        | OpenRouter (Cloud) | Ollama (Local)  |
+|--------------|-------------------|-----------------|
+| Speed        | Fast ⚡            | Slower 🐢       |
+| Cost         | Free tier         | Fully free      |
+| Groundedness | Strong ✅          | Medium ⚠️       |
+| Hallucination| Low               | Moderate        |
+| Dependency   | Internet + API Key | Local daemon    |
 
 ---
 
-## 📊 Key Findings
+## 🏃 Running Locally
 
-### OpenRouter
-- Faster and more reliable  
-- Better grounded responses  
+### Prerequisites
+- Python 3.10+
+- (Optional) [Ollama](https://ollama.com/) installed and running for local LLM
 
-### Ollama
-- Fully local and cost-free  
-- Requires stronger prompt control  
-- Slightly higher latency  
+### 1. Clone the repository
+```bash
+git clone https://github.com/Shivam123-Kumar/Indecimal-Assignment.git
+cd Indecimal-Assignment
+```
 
----
-
-## ⚠️ Limitations
-
-- Basic chunking (no overlap)  
-- No reranking of retrieved results  
-- Some irrelevant chunks may appear  
-- Local models may hallucinate  
-
----
-
-## 🚀 Future Improvements
-
-- Better chunking with overlap  
-- Reranking models (e.g., cross-encoder)  
-- Hybrid search (keyword + semantic)  
-- Chat history support  
-- Deployment on cloud (Streamlit Cloud / AWS)  
-
----
-
-## ▶️ How to Run
-
-### 1. Install dependencies
+### 2. Install dependencies
+```bash
 pip install -r requirements.txt
+```
 
-### 2. Run Ollama (optional)
+### 3. Set up your API key
+```bash
+# Copy the template
+cp .env.example .env
+
+# Edit .env and add your key
+# OPENROUTER_API_KEY=your_actual_key_here
+```
+Get a free API key at [https://openrouter.ai](https://openrouter.ai)
+
+### 4. (Optional) Start Ollama for local LLM
+```bash
 ollama run phi
+```
 
-### 3. Run app
+### 5. Run the app
+```bash
 streamlit run app.py
+```
 
+---
+
+## ☁️ Deploying to Streamlit Cloud
+
+1. Push the repository to GitHub (`.env` is in `.gitignore` — it will NOT be pushed)
+2. Go to [https://streamlit.io/cloud](https://streamlit.io/cloud)
+3. Click **New App** → Select your GitHub repo → Set entry point to `app.py`
+4. In **App Settings → Secrets**, add:
+   ```toml
+   OPENROUTER_API_KEY = "your_actual_key_here"
+   ```
+5. Click **Deploy** ✅
+
+> **Note:** Ollama cannot run on Streamlit Cloud (no local daemon). The app will automatically detect and warn the user on cloud deployments.
 
 ---
 
 ## 🔑 Environment Variables
 
-Create `.env` file:
-OPENROUTER_API_KEY=your_api_key_here
+| Variable           | Description                        | Required |
+|-------------------|------------------------------------|----------|
+| `OPENROUTER_API_KEY` | Your OpenRouter API key         | Yes (for LLM) |
+
+Copy `.env.example` → `.env` and fill in the value.
+
+---
+
+## 🧪 Quality Evaluation
+
+### Sample Test Queries
+1. What is escrow payment?
+2. How are construction delays handled?
+3. What are the pricing packages?
+4. What is the quality assurance process?
+5. How does the customer journey work?
+6. What are the contractor responsibilities?
+7. How are disputes resolved?
+8. What are the project timeline guarantees?
+
+### Observations
+- ✅ Retrieval is accurate for domain-specific queries
+- ✅ Increasing Top-K improves completeness for broad questions
+- ✅ API model produces precise, well-grounded responses
+- ⚠️ Local model (Ollama) may occasionally add unsupported claims — mitigated by strict prompt
+- ⚠️ Very short queries may return less relevant chunks — solved by increasing Top-K
+
+---
+
+## ✅ Pre-Deployment Checklist
+
+- [x] App runs locally (`streamlit run app.py`)
+- [x] No secrets in code or committed files
+- [x] `.env` is in `.gitignore`
+- [x] `.env.example` committed with placeholder
+- [x] `requirements.txt` is complete and minimal
+- [x] README is complete with setup + deploy instructions
+- [x] GitHub repo is clean (no zip, no cache files)
+- [x] Streamlit Secrets set for cloud deployment
+
+---
+
+## ⚠️ Limitations
+
+- Basic paragraph-level chunking (no sliding window overlap)
+- No reranking of retrieved results
+- Ollama only works locally — not on cloud platforms
+- FAISS index must be pre-built before deployment
+
+---
+
+## 🔮 Future Improvements
+
+- Chunking with overlap for better context continuity
+- Cross-encoder reranking for better chunk quality
+- Hybrid search (BM25 keyword + FAISS semantic)
+- Chat history and follow-up question support
+- Automatic index rebuild from uploaded documents
+
 ---
 
 ## 🏁 Conclusion
 
-This project demonstrates a complete RAG pipeline with:
-
-- Accurate retrieval  
-- Grounded generation  
-- Model comparison  
-- Real-world usability via UI  
-
-It highlights trade-offs between cloud-based and local LLMs, making it a practical and scalable solution.
+This project demonstrates a complete, production-oriented RAG pipeline with accurate document retrieval, grounded answer generation, transparent context display, and real-world deployability. It highlights practical trade-offs between cloud-based and local LLMs in a real AI assistant use case.

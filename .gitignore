@@ -2,4 +2,8 @@
 # 🔐 Secrets / Environment
 # -------------------------------
 .env
-.env.*
+
+# Cache and compiled files
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
