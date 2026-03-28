@@ -156,14 +156,17 @@ def generate_ollama_answer(query, chunks):
     prompt = build_prompt(query, context)
 
     start = time.time()
-
-    response = ollama.chat(
-        model='phi',
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    latency = round(time.time() - start, 2)
-    return response['message']['content'], latency
+    
+    try:
+        response = ollama.chat(
+            model='phi',
+            messages=[{"role": "user", "content": prompt}]
+        )
+        latency = round(time.time() - start, 2)
+        return response['message']['content'], latency
+    except Exception as e:
+        latency = round(time.time() - start, 2)
+        return f"Ollama Error: Could not connect to local model. (Make sure Ollama is installed and running). Details: {e}", latency
 
 # -------------------------------
 # UI CONTROLS
