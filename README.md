@@ -10,6 +10,8 @@
 
 🔗 [https://indecimal-assignment-sgeqcybgjijnu59ytdwwrv.streamlit.app/](https://indecimal-assignment-sgeqcybgjijnu59ytdwwrv.streamlit.app/)
 
+> **⚠️ Important Note on Live Demo:** The "Ollama (local only)" model will **not** generate answers on the live link. *Streamlit Community Cloud is a free hosting platform that provides very limited memory (around 1GB) and no GPU. It is physically impossible to install and run the Ollama background engine natively on their free servers without crashing.* **To see the Ollama dual-model comparison in action, you must run the app locally!**
+
 ---
 
 ## 🎯 What It Does
